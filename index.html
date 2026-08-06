@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
 <title>VBS Beauty — Operations Preview</title>
 <meta name="description" content="Illustrative preview built by AYD Services — synthetic data only.">
 <style>
@@ -124,10 +125,6 @@ nav.tabs button .t, nav.tabs button .s, .kpi .l, .card h3, .card .caption, .pill
 }
 
 .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
-@media (max-width: 860px) {
-  .shell { grid-template-columns: 1fr; }
-  .rail { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
-}
 .rail {
   background: var(--surface-2);
   border-right: 1px solid var(--border);
@@ -135,6 +132,10 @@ nav.tabs button .t, nav.tabs button .s, .kpi .l, .card h3, .card .caption, .pill
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
   isolation: isolate;
   display: flex; flex-direction: column; gap: 24px;
+}
+@media (max-width: 860px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
 }
 .brand {
   display: flex; flex-direction: column; gap: 0; padding: 10px 10px 14px;
