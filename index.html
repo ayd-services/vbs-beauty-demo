@@ -235,6 +235,10 @@ svg.chart { width: 100%; height: auto; display: block; font-family: 'IBM Plex Mo
 .drill-breadcrumb button:hover { text-decoration: underline; }
 .drill-breadcrumb button[aria-current="true"] { color: var(--ink-muted); cursor: default; }
 .drill-breadcrumb .sep { color: var(--ink-muted); font-size: 12px; }
+.bottle-legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin: -4px 0 14px; font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; color: var(--ink-muted); }
+.bottle-legend .item { display: flex; align-items: center; gap: 6px; }
+.bottle-legend .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; flex: none; }
+.bottle-legend .swatch.profit-scale { background: linear-gradient(90deg, var(--status-need), var(--accent-deep)); width: 32px; }
 
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border-strong); white-space: nowrap; }
@@ -382,7 +386,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
           <div style="display:flex; flex-direction:column; gap:14px">
             <div>
               <label for="txn-client" style="font-size:12px; color:var(--ink-muted); display:block; margin-bottom:4px">Client (optional)</label>
-              <input type="text" id="txn-client" placeholder="e.g. Karen" style="width:100%; box-sizing:border-box; padding:9px 11px; border-radius:6px; border:1px solid var(--border-strong); background:var(--bg); color:var(--ink); font-family:'IBM Plex Sans', sans-serif; font-size:14px">
+              <input type="text" id="txn-client" placeholder="e.g. Kate" style="width:100%; box-sizing:border-box; padding:9px 11px; border-radius:6px; border:1px solid var(--border-strong); background:var(--bg); color:var(--ink); font-family:'IBM Plex Sans', sans-serif; font-size:14px">
             </div>
             <div>
               <label for="txn-service" style="font-size:12px; color:var(--ink-muted); display:block; margin-bottom:4px">Service</label>
@@ -495,8 +499,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
         </div>
         <div class="drill-breadcrumb" id="drill-breadcrumb"></div>
         <div id="drill-chart-view">
+          <div class="bottle-legend">
+            <span class="item"><span class="swatch" style="background:var(--surface-2); border:1px solid var(--border-strong)"></span>Cost (materials, restock, wear &amp; tear)</span>
+            <span class="item"><span class="swatch" style="background:var(--status-warn)"></span>Tax reserve</span>
+            <span class="item"><span class="swatch profit-scale"></span>Pure profit — colour is margin quality (red under 15% · amber ~40% · green 68%+)</span>
+            <span class="item">Bottle height — pure profit margin %</span>
+          </div>
           <div class="chart-host">
-            <div class="chart-wrap"><svg class="chart" id="chart-drill" viewBox="0 0 760 220" preserveAspectRatio="xMidYMid meet"></svg></div>
+            <div class="chart-wrap"><svg class="chart" id="chart-drill" viewBox="0 0 760 240" preserveAspectRatio="xMidYMid meet"></svg></div>
             <div class="tooltip" id="tt-drill"></div>
           </div>
         </div>
@@ -691,7 +701,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
       <div class="need-box">
         <span class="lbl">What we'd need from you</span>
-        <p>However bookings are currently tracked (paper diary, booking app, Instagram DMs) and whether missed calls are logged anywhere at all today — likely not, which is exactly the gap this would close.</p>
+        <p>Her actual client list with visit dates, to replace the illustrative customer segments and lapsed list above — and how bookings and missed calls are currently tracked (paper diary, booking app, Instagram DMs), which is likely nowhere systematic, and exactly the gap the auto-answer idea would close.</p>
       </div>
     </section>
 
@@ -768,7 +778,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
       <div class="need-box">
         <span class="lbl">What we'd need from you</span>
-        <p>An actual stock count to start from, and roughly how often she reorders each product today — the usage-rate math only needs a starting point, not a new process.</p>
+        <p>An actual stock count to start from, roughly how often she reorders each product today, and rough shelf-life/expiry info for anything that goes off — the runway, shelf-life and wastage math above only need a starting point, not a new process.</p>
       </div>
     </section>
 
@@ -998,6 +1008,124 @@ function renderVBarChart(svgId, ttId, data, opts) {
   });
 }
 
+function lerpColor(hexA, hexB, t) {
+  t = Math.max(0, Math.min(1, t));
+  const a = hexA.replace('#', '').match(/.{2}/g).map(x => parseInt(x, 16));
+  const b = hexB.replace('#', '').match(/.{2}/g).map(x => parseInt(x, 16));
+  const rgb = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+}
+
+// Fixed quality scale (not relative min/max within the current view) — a 63% margin should always
+// read as solidly good, even in a view where everything else happens to sit at 65-69%. Relative
+// ranking within the view is already carried by bottle height; colour carries absolute quality.
+function marginColor(pct) {
+  const stops = [
+    { at: 15, color: cssVar('--status-need') },
+    { at: 42, color: cssVar('--status-warn') },
+    { at: 68, color: cssVar('--accent-deep') },
+  ];
+  const v = Math.max(stops[0].at, Math.min(stops[stops.length - 1].at, pct));
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (v <= stops[i + 1].at) {
+      const t = (v - stops[i].at) / (stops[i + 1].at - stops[i].at);
+      return lerpColor(stops[i].color, stops[i + 1].color, t);
+    }
+  }
+  return stops[stops.length - 1].color;
+}
+
+// Nail-varnish-bottle chart: each category/service is drawn as a little nail polish bottle instead
+// of a plain bar — squared shoulders tapering into a neck, a cap with the brush-handle nub nail
+// polish bottles have, glass highlight, grounding shadow. Bottle height still ranks by d.value (pure
+// profit margin %, same metric the old bar chart used), and the liquid inside is stacked into cost /
+// tax / profit bands sized from d.econ so the bottle shows the price breakdown, not just one number.
+// The profit band's colour comes from marginColor() — an absolute quality scale, not a per-view one.
+function renderBottleChart(svgId, ttId, data, opts) {
+  const svg = document.getElementById(svgId);
+  const tt = document.getElementById(ttId);
+  const W = 760, H = opts.height || 240;
+  const padL = 40, padR = 30, padT = 36, padB = 34;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const bw = Math.min(72, (plotW / data.length) * 0.48);
+  const maxV = Math.max(...data.map(d => d.value)) * 1.1;
+  const xAt = i => padL + (i + 0.5) * (plotW / data.length);
+
+  const costColor = cssVar('--surface-2'), taxColor = cssVar('--status-warn');
+  const bodyMaxH = plotH * 0.78;
+  const capH = 13, neckH = 7;
+
+  let s = '';
+  data.forEach((d, i) => {
+    const bodyH = Math.max(28, bodyMaxH * (d.value / maxV));
+    const cx = xAt(i);
+    const bx = cx - bw / 2;
+    const bodyBottom = padT + bodyMaxH + capH + neckH;
+    const bodyTop = bodyBottom - bodyH;
+    const r = bw * 0.14;
+    const sh = Math.min(bw * 0.32, bodyH * 0.42);
+    const shoulderY = bodyTop + sh;
+    const neckW = bw * 0.28, neckL = cx - neckW / 2, neckR = cx + neckW / 2;
+    const shoulderXInset = (bw - neckW) / 2;
+
+    const bottlePath = `M ${(bx + r).toFixed(2)} ${bodyBottom.toFixed(2)}
+      L ${(bx + bw - r).toFixed(2)} ${bodyBottom.toFixed(2)}
+      Q ${(bx + bw).toFixed(2)} ${bodyBottom.toFixed(2)} ${(bx + bw).toFixed(2)} ${(bodyBottom - r).toFixed(2)}
+      L ${(bx + bw).toFixed(2)} ${shoulderY.toFixed(2)}
+      C ${(bx + bw).toFixed(2)} ${(shoulderY - sh * 0.5).toFixed(2)} ${(neckR + shoulderXInset * 0.2).toFixed(2)} ${(bodyTop + sh * 0.08).toFixed(2)} ${neckR.toFixed(2)} ${bodyTop.toFixed(2)}
+      L ${neckL.toFixed(2)} ${bodyTop.toFixed(2)}
+      C ${(neckL - shoulderXInset * 0.2).toFixed(2)} ${(bodyTop + sh * 0.08).toFixed(2)} ${bx.toFixed(2)} ${(shoulderY - sh * 0.5).toFixed(2)} ${bx.toFixed(2)} ${shoulderY.toFixed(2)}
+      L ${bx.toFixed(2)} ${(bodyBottom - r).toFixed(2)}
+      Q ${bx.toFixed(2)} ${bodyBottom.toFixed(2)} ${(bx + r).toFixed(2)} ${bodyBottom.toFixed(2)} Z`;
+
+    const total = d.econ.cost + d.econ.tax + d.econ.profit;
+    const costH = bodyH * (d.econ.cost / total);
+    const taxH = bodyH * (d.econ.tax / total);
+    const profitH = bodyH - costH - taxH;
+    const profitColor = marginColor(d.marginPct);
+
+    const neckTop = bodyTop - neckH;
+    const capW = bw * 0.46, capX = cx - capW / 2, capTop = neckTop - capH;
+    const knobW = capW * 0.24, knobH = 4;
+    const clipId = `bottleclip-${svgId}-${i}`;
+
+    s += `<clipPath id="${clipId}"><path d="${bottlePath}" /></clipPath>`;
+    s += `<ellipse cx="${cx.toFixed(2)}" cy="${(bodyBottom + 4).toFixed(2)}" rx="${(bw * 0.46).toFixed(2)}" ry="3" fill="var(--ink)" opacity="0.10" />`;
+    s += `<g clip-path="url(#${clipId})">`;
+    s += `<rect x="${bx.toFixed(2)}" y="${(bodyBottom - costH).toFixed(2)}" width="${bw.toFixed(2)}" height="${(costH + 2).toFixed(2)}" fill="${costColor}" />`;
+    s += `<rect x="${bx.toFixed(2)}" y="${(bodyBottom - costH - taxH).toFixed(2)}" width="${bw.toFixed(2)}" height="${taxH.toFixed(2)}" fill="${taxColor}" />`;
+    s += `<rect x="${bx.toFixed(2)}" y="${bodyTop.toFixed(2)}" width="${bw.toFixed(2)}" height="${profitH.toFixed(2)}" fill="${profitColor}" />`;
+    s += `<rect x="${(bx + bw * 0.14).toFixed(2)}" y="${bodyTop.toFixed(2)}" width="${(bw * 0.15).toFixed(2)}" height="${bodyH.toFixed(2)}" fill="white" opacity="0.22" />`;
+    s += `</g>`;
+    s += `<path d="${bottlePath}" fill="none" stroke="var(--ink)" stroke-width="1.2" opacity="0.4" />`;
+    s += `<rect x="${neckL.toFixed(2)}" y="${neckTop.toFixed(2)}" width="${neckW.toFixed(2)}" height="${neckH.toFixed(2)}" fill="var(--ink-muted)" opacity="0.85" />`;
+    s += `<rect x="${capX.toFixed(2)}" y="${capTop.toFixed(2)}" width="${capW.toFixed(2)}" height="${capH.toFixed(2)}" rx="3" fill="${d.color}" />`;
+    s += `<rect x="${(capX + capW * 0.14).toFixed(2)}" y="${(capTop + 2).toFixed(2)}" width="${(capW * 0.16).toFixed(2)}" height="${(capH - 4).toFixed(2)}" rx="1.5" fill="white" opacity="0.28" />`;
+    s += `<rect x="${(cx - knobW / 2).toFixed(2)}" y="${(capTop - knobH).toFixed(2)}" width="${knobW.toFixed(2)}" height="${knobH + 1}" rx="1.2" fill="var(--ink)" opacity="0.55" />`;
+    s += `<text class="bar-label" x="${cx.toFixed(2)}" y="${(capTop - knobH - 8).toFixed(2)}" text-anchor="middle">${d.valueLabel}</text>`;
+    s += `<text class="axis-label" x="${cx.toFixed(2)}" y="${H - padB + 16}" text-anchor="middle">${d.label}</text>`;
+    s += `<rect data-i="${i}" x="${(bx - 8).toFixed(2)}" y="${(capTop - knobH - 4).toFixed(2)}" width="${(bw + 16).toFixed(2)}" height="${(bodyBottom - capTop + knobH + 8).toFixed(2)}" fill="transparent" />`;
+  });
+  svg.innerHTML = s;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  data.forEach((d, i) => {
+    const hit = svg.querySelector(`rect[data-i="${i}"]`);
+    hit.addEventListener('mousemove', e => {
+      const rect = svg.getBoundingClientRect();
+      const px = rect.left + (xAt(i) / W) * rect.width;
+      const py = rect.top + (padT / H) * rect.height;
+      tt.style.left = (px - rect.left) + 'px'; tt.style.top = (py - rect.top) + 'px'; tt.style.opacity = '1';
+      tt.textContent = opts.tooltip(d);
+    });
+    hit.addEventListener('mouseleave', () => tt.style.opacity = '0');
+    if (opts.onClick) {
+      hit.style.cursor = 'pointer';
+      hit.addEventListener('click', () => opts.onClick(d));
+    }
+  });
+}
+
 function renderStackedBarChart(svgId, ttId, data, opts) {
   const svg = document.getElementById(svgId);
   const tt = document.getElementById(ttId);
@@ -1182,12 +1310,21 @@ function renderDrillChart() {
     // how efficiently it's run) and not a monthly total, since that's built on still-guessed vol
     const catAvg = ['Nails', 'Waxing & Tinting', 'Treatments'].map(cat => {
       const inCat = services.filter(s => s.category === cat);
-      const avgPct = inCat.reduce((sum, s) => { const e = serviceEconomics(s); return sum + (e.pureProfit / s.price); }, 0) / inCat.length * 100;
-      return { label: cat, value: avgPct, valueLabel: avgPct.toFixed(1) + '%', color: cssVar(categoryColor[cat].replace('var(', '').replace(')', '')), category: cat };
+      const econs = inCat.map(s => serviceEconomics(s));
+      const avgPct = econs.reduce((sum, e, idx) => sum + (e.pureProfit / inCat[idx].price), 0) / inCat.length * 100;
+      const avgEcon = {
+        cost: econs.reduce((sum, e) => sum + e.materials + e.restockBufferAmount + e.wearTear, 0) / econs.length,
+        tax: econs.reduce((sum, e) => sum + e.tax, 0) / econs.length,
+        profit: econs.reduce((sum, e) => sum + e.pureProfit, 0) / econs.length,
+      };
+      return {
+        label: cat, value: avgPct, marginPct: avgPct, valueLabel: avgPct.toFixed(1) + '%',
+        color: cssVar(categoryColor[cat].replace('var(', '').replace(')', '')), category: cat, econ: avgEcon,
+      };
     });
-    renderHBarChart('chart-drill', 'tt-drill', catAvg, {
-      height: 170, padL: 150,
-      tooltip: d => `${d.label}: ${d.value.toFixed(1)}% avg. pure profit margin — click to see its services`,
+    renderBottleChart('chart-drill', 'tt-drill', catAvg, {
+      height: 220,
+      tooltip: d => `${d.label}: ${d.value.toFixed(1)}% avg. pure profit margin · cost £${d.econ.cost.toFixed(2)} · tax £${d.econ.tax.toFixed(2)} · profit £${d.econ.profit.toFixed(2)} (avg./booking) — click to see its services`,
       onClick: d => { drillPath = [d.category]; renderDrillChart(); },
     });
   } else {
@@ -1196,14 +1333,15 @@ function renderDrillChart() {
       const econ = serviceEconomics(s);
       const pct = (econ.pureProfit / s.price) * 100;
       return {
-        label: s.name.length > 24 ? s.name.slice(0, 22) + '…' : s.name,
-        value: pct, valueLabel: pct.toFixed(1) + '%',
+        label: s.name.length > 20 ? s.name.slice(0, 18) + '…' : s.name,
+        value: pct, marginPct: pct, valueLabel: pct.toFixed(1) + '%',
         color: cssVar(categoryColor[cat].replace('var(', '').replace(')', '')), name: s.name,
+        econ: { cost: econ.materials + econ.restockBufferAmount + econ.wearTear, tax: econ.tax, profit: econ.pureProfit },
       };
     }).sort((a, b) => b.value - a.value);
-    renderHBarChart('chart-drill', 'tt-drill', svcs, {
-      height: Math.max(120, svcs.length * 40), padL: 220,
-      tooltip: d => `${d.label}: ${d.value.toFixed(1)}% pure profit margin — click for full breakdown`,
+    renderBottleChart('chart-drill', 'tt-drill', svcs, {
+      height: 260,
+      tooltip: d => `${d.label}: ${d.value.toFixed(1)}% pure profit margin · cost £${d.econ.cost.toFixed(2)} · tax £${d.econ.tax.toFixed(2)} · profit £${d.econ.profit.toFixed(2)} — click for full breakdown`,
       onClick: d => { drillPath = [cat, d.name]; renderDrillChart(); },
     });
   }
@@ -1366,11 +1504,14 @@ const customerSegments = [
 ];
 
 const lapsedCustomers = [
-  { name: 'Sarah M.', lastVisitDays: 74, usedToBook: 'Gel and colour, every 3 weeks', message: "Hi Sarah, it's been a while — everything okay? We'd love to see you again." },
-  { name: 'James T.', lastVisitDays: 68, usedToBook: 'Brow wax, monthly', message: "Hi James, long time no see! Let us know if you'd like a slot for a brow wax." },
-  { name: 'Priya K.', lastVisitDays: 91, usedToBook: 'Luxury Facial, every 6 weeks', message: "Hi Priya, hope you're well — it's been a couple of months, want your facial booked back in?" },
-  { name: 'Chloe R.', lastVisitDays: 65, usedToBook: 'Lash tint, every 4 weeks', message: "Hi Chloe, we've missed you! Want to get your lash tint booked back in?" },
-  { name: 'Emma W.', lastVisitDays: 82, usedToBook: 'Gel toes, every 5 weeks', message: "Hi Emma, it's been a little while — everything alright? Happy to find you a slot whenever suits." },
+  { name: 'Kate Ainsley', lastVisitDays: 74, usedToBook: 'Gel and colour, every 3 weeks', message: "Hi Kate, it's been a while — everything okay? We'd love to see you again." },
+  { name: 'Barbara', lastVisitDays: 68, usedToBook: 'Builder gel, monthly', message: "Hi Barbara, long time no see! Let us know if you'd like a slot booked in." },
+  { name: 'Jo Richardson', lastVisitDays: 91, usedToBook: 'Luxury Facial, every 6 weeks', message: "Hi Jo, hope you're well — it's been a couple of months, want your facial booked back in?" },
+  { name: 'Lucy Bartlett', lastVisitDays: 65, usedToBook: 'Lash tint, every 4 weeks', message: "Hi Lucy, we've missed you! Want to get your lash tint booked back in?" },
+  { name: 'Rachel Downing', lastVisitDays: 82, usedToBook: 'Gel toes, every 5 weeks', message: "Hi Rachel, it's been a little while — everything alright? Happy to find you a slot whenever suits." },
+  { name: 'Leah', lastVisitDays: 70, usedToBook: 'Brow wax and tint, every 4 weeks', message: "Hi Leah, it's been a while — everything okay? Happy to find you a slot whenever suits." },
+  { name: 'Amy', lastVisitDays: 88, usedToBook: 'Gel and colour, every 4 weeks', message: "Hi Amy, we've missed you! Want to get booked back in?" },
+  { name: 'Helen', lastVisitDays: 61, usedToBook: 'Callus treatment, every 6 weeks', message: "Hi Helen, long time no see — want your callus treatment booked back in?" },
 ];
 
 function renderCustomerAnalytics() {
